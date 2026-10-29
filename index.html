@@ -129,7 +129,7 @@ footer{margin-top:26px;font-size:11px;opacity:.8;text-align:center;line-height:1
 .card i{display:block;font-style:normal;font-size:9px;line-height:1.15;opacity:.7;margin-top:2px}
 details#adjust summary{list-style:none;cursor:pointer;font-size:12px;font-weight:600;opacity:.85;padding:0 4px 6px}
 details#adjust summary::-webkit-details-marker{display:none}
-.sliders{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding-bottom:8px}
+.sliders{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-bottom:8px}
 .sliders label{min-width:0;font-size:10px;font-weight:600;color:rgba(255,255,255,.75)}
 .sliders input{width:100%;accent-color:#fff}
 .shutter-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -271,6 +271,7 @@ details#adjust summary::-webkit-details-marker{display:none}
       <summary>Ajuster ▾</summary>
       <div class="sliders">
         <label>Taille moustache<input type="range" id="sl-mscale" min="0.6" max="1.6" step="0.02" value="1"></label>
+        <label>Hauteur moustache<input type="range" id="sl-my" min="-60" max="60" step="1" value="0"></label>
         <label>Zoom portrait<input type="range" id="sl-zoom" min="0.5" max="1.5" step="0.02" value="1"></label>
       </div>
     </details>
@@ -393,10 +394,10 @@ const assetsReady = Promise.all([
 
 /* ---------- état ---------- */
 const S = {
-  view:'landing', mi:1, mscale:1, zoom:1, zoomTouched:false, timer:0,
+  view:'landing', mi:1, mscale:1, my:0, zoom:1, zoomTouched:false, timer:0,
   facing:'user', mirror:true, stream:null, raf:0, busy:false, frame:0,
   src:null, staticMode:false, vw:0, vh:0,
-  seg:null, fm:null, modelsReady:false, modelsFailed:false,
+  seg:null, fm:null, modelsReady:false, fmFailed:false, segReady:null,
   person:document.createElement('canvas'), hasMask:false, lastSeen:0,
   composing:false,                // préparation de la photo finale en cours
   lm:null,                        // landmarks visage
@@ -478,6 +479,7 @@ car.addEventListener('click', e => {
   b.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
 });
 $('#sl-mscale').oninput = e => S.mscale = +e.target.value;
+$('#sl-my').oninput     = e => S.my = +e.target.value;
 $('#sl-zoom').oninput   = e => { S.zoom = +e.target.value; S.zoomTouched = true; };
 $('#btn-timer').onclick = () => {
   S.timer = S.timer ? 0 : 3;
@@ -486,28 +488,37 @@ $('#btn-timer').onclick = () => {
 
 /* ---------- modèles de détourage (MediaPipe, via CDN) ---------- */
 async function initModels(){
-  if(S.modelsReady || S.modelsFailed) return;
+  if(S.modelsReady) return;
+  const FM = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/';
+  const SG = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/';
+  const timeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('délai dépassé')), ms))]);
+  // 1) suivi du visage d'abord, seul (sur téléphone, démarrer les deux outils en même temps peut faire échouer le suivi)
   try{
-    await Promise.all([
-      scriptLoad('https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'),
-      scriptLoad('https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js'),
-    ]);
-    S.seg = new SelfieSegmentation({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/${f}`});
-    S.seg.setOptions({modelSelection:0});
-    S.seg.onResults(r => { if(segCb) segCb(r); });
-    S.fm = new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`});
-    S.fm.setOptions({maxNumFaces:1, refineLandmarks:false, minDetectionConfidence:.5, minTrackingConfidence:.5});
-    S.fm.onResults(r => {                                   // visage perdu un court instant : on garde les derniers repères (pas de clignotement)
+    await scriptLoad(FM + 'face_mesh.js');
+    const fm = new FaceMesh({locateFile:f => FM + f});
+    fm.setOptions({maxNumFaces:1, refineLandmarks:false, minDetectionConfidence:.5, minTrackingConfidence:.5});
+    fm.onResults(r => {                                     // visage perdu un court instant : on garde les derniers repères (pas de clignotement)
       const l = r.multiFaceLandmarks && r.multiFaceLandmarks[0];
       if(l){ S.lm = l; S.lmT = performance.now(); } else if(performance.now() - (S.lmT||0) > 400) S.lm = null;
     });
-    await S.seg.initialize();
-    S.modelsReady = true;
-    S.fm.initialize().catch(()=>{ S.fm = null; });   // le visage est un plus : sans lui, moustache placée au jugé
+    await timeout(fm.initialize(), 20000);
+    S.fm = fm;
   }catch(err){
-    console.warn(err); S.modelsFailed = true; S.seg = null; S.fm = null;
-    toast("Détourage indisponible (connexion ?) : mode simplifié activé.", 5000);
+    console.warn(err); S.fm = null; S.fmFailed = true;
+    toast('Suivi du visage indisponible sur cet appareil (' + String(err && err.message || err).slice(0, 60) + ') : place ta moustache avec les réglages.', 8000);
   }
+  S.modelsReady = true;
+  // 2) détourage ensuite, en arrière-plan : il ne sert qu'au déclic
+  S.segReady = (async () => {
+    try{
+      await scriptLoad(SG + 'selfie_segmentation.js');
+      const seg = new SelfieSegmentation({locateFile:f => SG + f});
+      seg.setOptions({modelSelection:0});
+      seg.onResults(r => { if(segCb) segCb(r); });
+      await timeout(seg.initialize(), 30000);
+      S.seg = seg;
+    }catch(err){ console.warn(err); S.seg = null; toast("Détourage indisponible (connexion ?) : mode simplifié activé.", 5000); }
+  })();
 }
 
 /* ---------- caméra ---------- */
@@ -584,7 +595,8 @@ async function tick(){
   }
   renderLive(pc, PW, PH);
   const seen = performance.now()-S.lastSeen < 1500;
-  $('#hint').textContent = !S.src ? 'Caméra indisponible' : seen ? 'Choisis ta moustache et ajuste-la' : 'Je ne te vois pas : place-toi face à la caméra';
+  $('#hint').textContent = !S.src ? 'Caméra indisponible' : S.fmFailed ? 'Place ta moustache avec les réglages'
+    : seen ? 'Choisis ta moustache et ajuste-la' : 'Je ne te vois pas : place-toi face à la caméra';
   S.raf = requestAnimationFrame(tick);
 }
 
@@ -617,6 +629,7 @@ async function segment(src, w, h){                          // un passage MediaP
   return c;
 }
 async function compose(){
+  if(S.segReady) await S.segReady;                          // détourage pas encore chargé : on l'attend (une seule fois)
   const w0 = S.src.videoWidth || S.src.naturalWidth, h0 = S.src.videoHeight || S.src.naturalHeight;
   const q = Math.min(1, 1600/Math.max(w0,h0)), w = Math.round(w0*q), h = Math.round(h0*q);
   const still = document.createElement('canvas'); still.width = w; still.height = h;
@@ -667,7 +680,8 @@ function drawMoustache(ctx, k){
   const mu = MUSTACHES[S.mi];
   if(!S.m || !mu.img || !mu.img.naturalWidth) return;
   const mw = S.m.w*W*mu.wf*S.mscale*k, mh = mw*mu.img.naturalHeight/mu.img.naturalWidth;
-  const cy = Math.min(S.m.y*H*k, M_BOTTOM*H*k - (1-mu.ay)*mh);   // jamais sur la phrase « Faites un don » (~0,83 H)
+  const cy = Math.min(S.m.y*H*k + (S.my/100)*S.m.w*W*k,   // réglage de hauteur, relatif à la taille du visage
+                      M_BOTTOM*H*k - (1-mu.ay)*mh);         // jamais sur la phrase « Faites un don » (~0,83 H)
   ctx.save(); ctx.translate(S.m.x*W*k, cy); ctx.rotate(S.m.a);
   ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 6*k; ctx.shadowOffsetY = 3*k;
   ctx.drawImage(mu.img, -mw/2, -mu.ay*mh, mw, mh); ctx.restore();
