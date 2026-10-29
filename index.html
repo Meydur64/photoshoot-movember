@@ -144,6 +144,8 @@ details#adjust summary::-webkit-details-marker{display:none}
 .res-meta{padding:10px 8px 6px;color:#000}
 .res-meta b{font-family:"Fredoka";font-size:16px}
 .res-meta small{display:block;font-size:12px;color:rgba(0,0,0,.6)}
+.res-vibe{font-family:"Fredoka";font-weight:500;font-size:14px;color:var(--orange)}
+.res-vibe::before{content:" · ";color:rgba(0,0,0,.35)}
 .row2{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .btn{height:50px;border-radius:99px;font-weight:700;font-size:14px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3)}
 .btn.w{background:#fff;color:#000;border-color:#fff}
@@ -286,13 +288,13 @@ details#adjust summary::-webkit-details-marker{display:none}
 <main id="s-result" hidden>
   <div class="res-card">
     <img id="res-img" alt="Ton portrait Movember">
-    <div class="res-meta"><b id="res-name"></b><small>Nous Nours • Movember 2026</small></div>
+    <div class="res-meta"><b id="res-name"></b><span class="res-vibe" id="res-vibe"></span><small>Nous Nours • Movember 2026</small></div>
   </div>
   <div class="row2">
     <button class="btn" id="btn-retake">Refaire</button>
     <button class="btn w" id="btn-dl">Télécharger</button>
   </div>
-  <button class="share" id="btn-share">Partager mon Movember<small>Ta photo + les 2 images infos, vers Insta, Facebook, WhatsApp…</small></button>
+  <button class="share" id="btn-share">Partager mon Photoshoot<small>Ta photo + les 2 images infos, vers Insta, FB, WhatsApp, mail, MMS…</small></button>
 
   <div class="packbox">
     <h3 class="fr">Le pack à poster en carrousel</h3>
@@ -712,7 +714,7 @@ async function capture(){
   S.composing = false; $('#loading').hidden = true;
   if(S.url) URL.revokeObjectURL(S.url);
   S.url = URL.createObjectURL(S.blob);
-  $('#res-img').src = S.url; $('#pk1').src = S.url; $('#res-name').textContent = MUSTACHES[S.mi].name;
+  $('#res-img').src = S.url; $('#pk1').src = S.url; $('#res-name').textContent = MUSTACHES[S.mi].name; $('#res-vibe').textContent = MUSTACHES[S.mi].vibe;
   $('#cap-text').textContent = CAPTION;
   show('result');
   prepareFiles();
