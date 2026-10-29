@@ -271,8 +271,8 @@ details#adjust summary::-webkit-details-marker{display:none}
       <summary>Ajuster ▾</summary>
       <div class="sliders">
         <label>Taille moustache<input type="range" id="sl-mscale" min="0.6" max="1.6" step="0.02" value="1"></label>
-        <label>Hauteur moustache<input type="range" id="sl-my" min="-40" max="40" step="1" value="0"></label>
-        <label>Zoom portrait<input type="range" id="sl-zoom" min="0.8" max="1.3" step="0.02" value="1"></label>
+        <label>Hauteur moustache<input type="range" id="sl-my" min="-40" max="100" step="1" value="0"></label>
+        <label>Zoom portrait<input type="range" id="sl-zoom" min="0.5" max="1.3" step="0.02" value="0.8"></label>
       </div>
     </details>
     <div class="shutter-row">
@@ -362,6 +362,7 @@ const ASSETS={"fond": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA
 const $ = s => document.querySelector(s);
 const W = 1080, H = 1350;                       // taille finale (4:5)
 const PW = 540, PH = 675;                       // taille de l'aperçu
+const M_BOTTOM = 0.82;                          // bas maximum de la moustache (fraction de H), au-dessus du texte
 
 const MUSTACHES = [
   {id:'none',      name:'Ma vraie moustache',    vibe:'au naturel',                  none:true},
@@ -391,7 +392,7 @@ const assetsReady = Promise.all([
 
 /* ---------- état ---------- */
 const S = {
-  view:'landing', mi:1, mscale:1, my:0, zoom:1, timer:0,
+  view:'landing', mi:1, mscale:1, my:0, zoom:.8, zoomTouched:false, timer:0,
   facing:'user', mirror:true, stream:null, raf:0, busy:false, frame:0,
   src:null, staticMode:false, vw:0, vh:0,
   seg:null, fm:null, modelsReady:false, modelsFailed:false,
@@ -477,7 +478,7 @@ car.addEventListener('click', e => {
 });
 $('#sl-mscale').oninput = e => S.mscale = +e.target.value;
 $('#sl-my').oninput     = e => S.my = +e.target.value;
-$('#sl-zoom').oninput   = e => S.zoom = +e.target.value;
+$('#sl-zoom').oninput   = e => { S.zoom = +e.target.value; S.zoomTouched = true; };
 $('#btn-timer').onclick = () => {
   S.timer = S.timer ? 0 : 3;
   const b=$('#btn-timer'); b.innerHTML = S.timer ? 'Minuteur<br>3 s' : 'Minuteur<br>off'; b.setAttribute('aria-pressed', !!S.timer);
@@ -517,6 +518,10 @@ async function startCamera(){
     S.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:S.facing, width:{ideal:1280}, height:{ideal:1280}}, audio:false});
     vid.srcObject = S.stream; await vid.play();
     S.src = vid; S.mirror = S.facing === 'user';
+    if(!S.zoomTouched){                                   // cadrage de départ plus large : pas besoin de tendre les bras
+      S.zoom = vid.videoWidth > vid.videoHeight ? .7 : .85; // webcam paysage (PC) / caméra portrait (téléphone)
+      $('#sl-zoom').value = S.zoom;
+    }
   }catch(err){
     $('#loading').hidden = true;
     $('#cam-error-text').textContent = "Impossible d'accéder à la caméra. Autorise-la dans ton navigateur, ou choisis une photo dans ta galerie.";
@@ -577,9 +582,9 @@ async function tick(){
 }
 
 /* ---------- géométrie ---------- */
-function liveFit(){                                        // photo entière recadrée en 4:5, zoom au centre
-  const s = Math.max(W/S.vw, H/S.vh)*S.zoom;
-  return {s, ox:(W-S.vw*s)/2, oy:(H-S.vh*s)/2};
+function liveFit(){                                        // photo recadrée en 4:5 ; dézoomée, elle reste posée en bas
+  const s = Math.max(W/S.vw, H/S.vh)*S.zoom, dh = S.vh*s;   // (le corps continue sous les bandeaux, pas de coupure)
+  return {s, ox:(W-S.vw*s)/2, oy: dh < H ? H-dh : (H-dh)/2};
 }
 function livePt(p){                                        // repère normalisé -> 1080x1350 (aperçu en direct)
   const f = liveFit(), x = f.ox + p.x*S.vw*f.s;
@@ -653,7 +658,8 @@ function drawMoustache(ctx, k){
   const mu = MUSTACHES[S.mi];
   if(!S.m || !mu.img || !mu.img.naturalWidth) return;
   const mw = S.m.w*W*mu.wf*S.mscale*k, mh = mw*mu.img.naturalHeight/mu.img.naturalWidth;
-  const cy = S.m.y*H*k + (S.my/100)*S.m.w*W*k;
+  const cy = Math.min(S.m.y*H*k + (S.my/100)*S.m.w*W*k,   // jamais sur la phrase « Faites un don » (~0,83 H)
+                      M_BOTTOM*H*k - (1-mu.ay)*mh);
   ctx.save(); ctx.translate(S.m.x*W*k, cy); ctx.rotate(S.m.a);
   ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 6*k; ctx.shadowOffsetY = 3*k;
   ctx.drawImage(mu.img, -mw/2, -mu.ay*mh, mw, mh); ctx.restore();
@@ -665,7 +671,8 @@ function drawPhoto(ctx, img, k){                          // photo (ou silhouett
 }
 function renderLive(ctx, w, h){                            // aperçu : photo entière -> moustache -> infos -> texte
   const k = w/W;
-  ctx.fillStyle = '#1e8bd0'; ctx.fillRect(0, 0, w, h);
+  if(IMG.fond && IMG.fond.naturalWidth) ctx.drawImage(IMG.fond, 0, 0, w, h);   // fond visible si la photo ne remplit pas le cadre
+  else{ ctx.fillStyle = '#1e8bd0'; ctx.fillRect(0, 0, w, h); }
   if(S.src && S.vw) drawPhoto(ctx, S.src, k);
   drawMoustache(ctx, k);
   drawInfos(ctx, w, h, k);
