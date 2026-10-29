@@ -129,7 +129,7 @@ footer{margin-top:26px;font-size:11px;opacity:.8;text-align:center;line-height:1
 .card i{display:block;font-style:normal;font-size:9px;line-height:1.15;opacity:.7;margin-top:2px}
 details#adjust summary{list-style:none;cursor:pointer;font-size:12px;font-weight:600;opacity:.85;padding:0 4px 6px}
 details#adjust summary::-webkit-details-marker{display:none}
-.sliders{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-bottom:8px}
+.sliders{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding-bottom:8px}
 .sliders label{min-width:0;font-size:10px;font-weight:600;color:rgba(255,255,255,.75)}
 .sliders input{width:100%;accent-color:#fff}
 .shutter-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -271,8 +271,7 @@ details#adjust summary::-webkit-details-marker{display:none}
       <summary>Ajuster ▾</summary>
       <div class="sliders">
         <label>Taille moustache<input type="range" id="sl-mscale" min="0.6" max="1.6" step="0.02" value="1"></label>
-        <label>Hauteur moustache<input type="range" id="sl-my" min="-40" max="100" step="1" value="0"></label>
-        <label>Zoom portrait<input type="range" id="sl-zoom" min="0.5" max="1.3" step="0.02" value="0.8"></label>
+        <label>Zoom portrait<input type="range" id="sl-zoom" min="0.5" max="1.5" step="0.02" value="1"></label>
       </div>
     </details>
     <div class="shutter-row">
@@ -363,6 +362,8 @@ const $ = s => document.querySelector(s);
 const W = 1080, H = 1350;                       // taille finale (4:5)
 const PW = 540, PH = 675;                       // taille de l'aperçu
 const M_BOTTOM = 0.82;                          // bas maximum de la moustache (fraction de H), au-dessus du texte
+// Zone photo : sous le texte poilu MOVEMBER (le toupet passe par-dessus), marges sur les côtés, jusqu'en bas derrière les bandeaux
+const ZONE = {x:.075, y:.315, w:.85, h:.685};
 
 const MUSTACHES = [
   {id:'none',      name:'Ma vraie moustache',    vibe:'au naturel',                  none:true},
@@ -392,7 +393,7 @@ const assetsReady = Promise.all([
 
 /* ---------- état ---------- */
 const S = {
-  view:'landing', mi:1, mscale:1, my:0, zoom:.8, zoomTouched:false, timer:0,
+  view:'landing', mi:1, mscale:1, zoom:1, zoomTouched:false, timer:0,
   facing:'user', mirror:true, stream:null, raf:0, busy:false, frame:0,
   src:null, staticMode:false, vw:0, vh:0,
   seg:null, fm:null, modelsReady:false, modelsFailed:false,
@@ -477,7 +478,6 @@ car.addEventListener('click', e => {
   b.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
 });
 $('#sl-mscale').oninput = e => S.mscale = +e.target.value;
-$('#sl-my').oninput     = e => S.my = +e.target.value;
 $('#sl-zoom').oninput   = e => { S.zoom = +e.target.value; S.zoomTouched = true; };
 $('#btn-timer').onclick = () => {
   S.timer = S.timer ? 0 : 3;
@@ -497,7 +497,10 @@ async function initModels(){
     S.seg.onResults(r => { if(segCb) segCb(r); });
     S.fm = new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`});
     S.fm.setOptions({maxNumFaces:1, refineLandmarks:false, minDetectionConfidence:.5, minTrackingConfidence:.5});
-    S.fm.onResults(r => { S.lm = (r.multiFaceLandmarks && r.multiFaceLandmarks[0]) || null; });
+    S.fm.onResults(r => {                                   // visage perdu un court instant : on garde les derniers repères (pas de clignotement)
+      const l = r.multiFaceLandmarks && r.multiFaceLandmarks[0];
+      if(l){ S.lm = l; S.lmT = performance.now(); } else if(performance.now() - (S.lmT||0) > 400) S.lm = null;
+    });
     await S.seg.initialize();
     S.modelsReady = true;
     S.fm.initialize().catch(()=>{ S.fm = null; });   // le visage est un plus : sans lui, moustache placée au jugé
@@ -519,7 +522,7 @@ async function startCamera(){
     vid.srcObject = S.stream; await vid.play();
     S.src = vid; S.mirror = S.facing === 'user';
     if(!S.zoomTouched){                                   // cadrage de départ plus large : pas besoin de tendre les bras
-      S.zoom = vid.videoWidth > vid.videoHeight ? .7 : .85; // webcam paysage (PC) / caméra portrait (téléphone)
+      S.zoom = vid.videoWidth > vid.videoHeight ? .75 : 1;  // webcam paysage (PC) / caméra portrait (téléphone)
       $('#sl-zoom').value = S.zoom;
     }
   }catch(err){
@@ -565,15 +568,19 @@ async function tick(){
   if(S.view!=='camera' || S.composing) return;
   if(!S.staticMode && S.src && S.src.readyState>=2 && S.src.videoWidth){
     S.vw = S.src.videoWidth; S.vh = S.src.videoHeight;
-    if(S.fm && !S.busy && S.frame%2===0){                   // repères du visage une image sur deux : léger
-      S.busy = true; try{ await S.fm.send({image:S.src}); }catch(e){} S.busy = false;
+    if(S.fm && !S.busy){                                    // repères du visage en tâche de fond : l'affichage n'attend pas
+      S.busy = true; S.fm.send({image:S.src}).catch(()=>{}).finally(() => { S.busy = false; });
     }
-    S.frame++;
   }
   if(S.lm) S.lastSeen = performance.now();
   if(S.vw){
-    const t = mTarget(livePt, {x:.5, y:.6, w:.17, a:0});
-    S.m = S.m ? {x:lerp(S.m.x,t.x,.35), y:lerp(S.m.y,t.y,.35), w:lerp(S.m.w,t.w,.3), a:lerp(S.m.a,t.a,.3)} : t;
+    const t = mTarget(livePt, {x:.5, y:.62, w:.12, a:0});
+    if(!S.m) S.m = t;
+    else{                                                   // lissage adaptatif : suit vite les vrais mouvements, gomme les tremblements
+      const d = Math.hypot(t.x-S.m.x, (t.y-S.m.y)*H/W) / Math.max(S.m.w, .02);
+      const f = Math.min(.9, .3 + d*1.5);
+      S.m = {x:lerp(S.m.x,t.x,f), y:lerp(S.m.y,t.y,f), w:lerp(S.m.w,t.w,.2), a:lerp(S.m.a,t.a,f)};
+    }
   }
   renderLive(pc, PW, PH);
   const seen = performance.now()-S.lastSeen < 1500;
@@ -582,20 +589,22 @@ async function tick(){
 }
 
 /* ---------- géométrie ---------- */
-function liveFit(){                                        // photo recadrée en 4:5 ; dézoomée, elle reste posée en bas
-  const s = Math.max(W/S.vw, H/S.vh)*S.zoom, dh = S.vh*s;   // (le corps continue sous les bandeaux, pas de coupure)
-  return {s, ox:(W-S.vw*s)/2, oy: dh < H ? H-dh : (H-dh)/2};
+function liveFit(){                                        // photo recadrée dans la zone photo ; dézoomée, elle reste posée en bas
+  const zx = ZONE.x*W, zy = ZONE.y*H, zw = ZONE.w*W, zh = ZONE.h*H;
+  const s = Math.max(zw/S.vw, zh/S.vh)*S.zoom, dh = S.vh*s;
+  return {s, ox: zx + (zw-S.vw*s)/2, oy: dh < zh ? zy+zh-dh : zy + (zh-dh)*.35};   // trop haute : on garde plutôt le haut (la tête)
 }
 function livePt(p){                                        // repère normalisé -> 1080x1350 (aperçu en direct)
   const f = liveFit(), x = f.ox + p.x*S.vw*f.s;
   return {x: S.mirror ? W-x : x, y: f.oy + p.y*S.vh*f.s};
 }
 function mTarget(map, def){                                // moustache {x,y,w,a} (fractions) d'après les repères du visage
-  if(!S.lm) return def;
-  const nose=map(S.lm[2]), lip=map(S.lm[0]), mL=map(S.lm[61]), mR=map(S.lm[291]);
+  if(!S.lm) return def;                                    // accrochée sous le nez ; taille d'après la largeur du visage
+  const nose=map(S.lm[2]), lip=map(S.lm[0]);                // (stable : ne bouge pas quand on ouvre la bouche ou qu'on sourit)
   let cL=map(S.lm[234]), cR=map(S.lm[454]); if(cR.x<cL.x) [cL,cR]=[cR,cL];
-  const mw = Math.hypot(mL.x-mR.x, mL.y-mR.y);
-  return {x:(nose.x*.45+lip.x*.55)/W, y:(nose.y*.45+lip.y*.55)/H, w:mw/W, a:Math.atan2(cR.y-cL.y, cR.x-cL.x)};
+  let eL=map(S.lm[33]), eR=map(S.lm[263]); if(eR.x<eL.x) [eL,eR]=[eR,eL];
+  const fw = Math.hypot(cR.x-cL.x, cR.y-cL.y);
+  return {x:(nose.x*.65+lip.x*.35)/W, y:(nose.y*.65+lip.y*.35)/H, w:fw*.42/W, a:Math.atan2(eR.y-eL.y, eR.x-eL.x)};
 }
 
 /* ---------- composition après la photo : un seul détourage, même cadrage que l'aperçu ---------- */
@@ -658,15 +667,15 @@ function drawMoustache(ctx, k){
   const mu = MUSTACHES[S.mi];
   if(!S.m || !mu.img || !mu.img.naturalWidth) return;
   const mw = S.m.w*W*mu.wf*S.mscale*k, mh = mw*mu.img.naturalHeight/mu.img.naturalWidth;
-  const cy = Math.min(S.m.y*H*k + (S.my/100)*S.m.w*W*k,   // jamais sur la phrase « Faites un don » (~0,83 H)
-                      M_BOTTOM*H*k - (1-mu.ay)*mh);
+  const cy = Math.min(S.m.y*H*k, M_BOTTOM*H*k - (1-mu.ay)*mh);   // jamais sur la phrase « Faites un don » (~0,83 H)
   ctx.save(); ctx.translate(S.m.x*W*k, cy); ctx.rotate(S.m.a);
   ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 6*k; ctx.shadowOffsetY = 3*k;
   ctx.drawImage(mu.img, -mw/2, -mu.ay*mh, mw, mh); ctx.restore();
 }
 function drawPhoto(ctx, img, k){                          // photo (ou silhouette) au cadrage de l'aperçu
   const f = liveFit(), w = W*k;
-  ctx.save(); if(S.mirror){ ctx.translate(w, 0); ctx.scale(-1, 1); }
+  ctx.save(); ctx.beginPath(); ctx.rect(ZONE.x*w, ZONE.y*H*k, ZONE.w*w, ZONE.h*H*k); ctx.clip();   // jamais hors de la zone photo
+  if(S.mirror){ ctx.translate(w, 0); ctx.scale(-1, 1); }
   ctx.drawImage(img, f.ox*k, f.oy*k, S.vw*f.s*k, S.vh*f.s*k); ctx.restore();
 }
 function renderLive(ctx, w, h){                            // aperçu : photo entière -> moustache -> infos -> texte
