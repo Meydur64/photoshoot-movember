@@ -88,6 +88,16 @@ main{max-width:520px;margin:0 auto;padding:20px 16px calc(40px + var(--safe-b))}
 .pack img{border-radius:18px;border:4px solid #fff;box-shadow:0 8px 22px rgba(8,50,84,.3);width:100%}
 footer a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 footer{margin-top:26px;font-size:11px;opacity:.8;text-align:center;line-height:1.5}
+.legal-link{margin-top:6px;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.legal{position:fixed;inset:0;z-index:60;background:rgba(6,32,47,.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overflow-y:auto;padding:calc(16px + var(--safe-t)) 16px calc(16px + var(--safe-b))}
+.legal-in{position:relative;max-width:520px;margin:0 auto;background:#fff;color:var(--ink);border-radius:22px;padding:22px 18px 18px;font-size:13px;line-height:1.45}
+.legal h2{font-size:22px;padding-right:40px}
+.legal h3{margin-top:18px;font-size:14px;color:var(--blue-deep)}
+.legal p,.legal ul{margin-top:6px}
+.legal ul{padding-left:18px}
+.legal li{margin-top:5px}
+.legal a{color:var(--blue-deep)}
+.legal-x{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;background:var(--ink);color:#fff;font-size:15px}
 
 /* ---------- camera ---------- */
 .screen{position:fixed;left:0;right:0;top:0;height:100vh;height:100dvh;z-index:50;background:#06202f;display:flex;flex-direction:column;padding-top:var(--safe-t);overflow:hidden}
@@ -235,7 +245,7 @@ details#adjust summary::-webkit-details-marker{display:none}
     <img data-asset="affiche" alt="Super gros lot surprise – tombola 42 Bar">
   </section>
 
-  <footer>© Association Bear LGBTQIA+ NousNours 64 / 40 - <a href="https://www.nousnours.fr" target="_blank" rel="noopener">www.nousnours.fr</a><br>Évènement caritatif pour la fondation MOVEMBER <a href="https://fr.movember.com" target="_blank" rel="noopener">fr.movember.com</a></footer>
+  <footer>© Association Bear LGBTQIA+ NousNours 64 / 40 - <a href="https://www.nousnours.fr" target="_blank" rel="noopener">www.nousnours.fr</a><br>Évènement caritatif pour la fondation MOVEMBER <a href="https://fr.movember.com" target="_blank" rel="noopener">fr.movember.com</a><br><button class="legal-link" data-legal>Mentions légales</button></footer>
 </main>
 
 <!-- ============ CAMERA ============ -->
@@ -295,8 +305,45 @@ details#adjust summary::-webkit-details-marker{display:none}
       <button id="btn-cap">Copier la légende</button>
     </div>
   </div>
-  <footer>© Association Bear LGBTQIA+ NousNours 64 / 40 - <a href="https://www.nousnours.fr" target="_blank" rel="noopener">www.nousnours.fr</a><br>Évènement caritatif pour la fondation MOVEMBER <a href="https://fr.movember.com" target="_blank" rel="noopener">fr.movember.com</a></footer>
+  <footer>© Association Bear LGBTQIA+ NousNours 64 / 40 - <a href="https://www.nousnours.fr" target="_blank" rel="noopener">www.nousnours.fr</a><br>Évènement caritatif pour la fondation MOVEMBER <a href="https://fr.movember.com" target="_blank" rel="noopener">fr.movember.com</a><br><button class="legal-link" data-legal>Mentions légales</button></footer>
 </main>
+
+<!-- ============ MENTIONS LÉGALES ============ -->
+<div class="legal" id="legal" role="dialog" aria-modal="true" aria-labelledby="legal-title" hidden>
+  <div class="legal-in">
+    <button class="legal-x" id="legal-close" aria-label="Fermer">✕</button>
+    <h2 id="legal-title">Mentions légales</h2>
+
+    <h3>Éditeur</h3>
+    <p>Association NousNours<br>Association régie par la loi du 1<sup>er</sup> juillet 1901<br>RNA : W401011935<br>Territoire : Pays Basque – Landes – Béarn<br>Contact : <a href="mailto:contact@nousnours.fr">contact@nousnours.fr</a></p>
+
+    <h3>Hébergeur</h3>
+    <p>GitHub Pages – GitHub, Inc.<br>88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, États-Unis<br><a href="https://github.com" target="_blank" rel="noopener">github.com</a></p>
+
+    <h3>Direction artistique</h3>
+    <p>Cyril MARTIN – Conseiller d'administration : Social, Creative &amp; Marketing</p>
+
+    <h3>Vos photos et vos données</h3>
+    <ul>
+      <li><b>Aucune photo n'est conservée</b>, sur aucun serveur. Le détourage et le montage se font directement dans votre téléphone ou votre ordinateur : l'image ne quitte jamais votre appareil, sauf si vous choisissez vous-même de la partager.</li>
+      <li>L'application ne collecte aucune donnée personnelle, ne crée aucun compte et n'utilise ni cookie ni outil de mesure d'audience.</li>
+      <li>L'accès à la caméra n'est demandé que pendant la prise de vue, et il est coupé dès que vous quittez l'écran photo.</li>
+      <li>Pour fonctionner, l'application charge des polices d'écriture (Google Fonts) et l'outil de détourage (MediaPipe, via jsDelivr). Comme pour toute page web, ces services reçoivent l'adresse IP technique de votre appareil, mais jamais vos photos.</li>
+      <li>L'application est protégée : elle n'accepte que les sources de contenu autorisées et vérifie les images importées.</li>
+    </ul>
+
+    <h3>Utilisation des images</h3>
+    <ul>
+      <li>Vous êtes libre de partager le résultat où vous le souhaitez.</li>
+      <li>Les images créées ne doivent pas être utilisées à des fins illicites, diffamatoires, injurieuses, discriminatoires ou haineuses, ni pour porter atteinte à la dignité, à la vie privée ou au droit à l'image d'autrui.</li>
+      <li>Ne photographiez une autre personne qu'avec son accord. Chaque utilisateur reste seul responsable de l'usage qu'il fait des images générées.</li>
+    </ul>
+
+    <h3>Informations générales</h3>
+    <p>L'application Photoshoot MOVEMBER des NousNours est accessible librement et gratuitement à tout internaute disposant d'un accès à Internet. L'association se réserve le droit de modifier, suspendre ou interrompre l'accès au site à tout moment, sans préavis ni indemnité.</p>
+    <p>Les logos, visuels et moustaches de l'application sont la propriété de l'association NousNours. Movember est une marque de la fondation Movember.</p>
+  </div>
+</div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -387,6 +434,15 @@ function toggleAgenda(open){ $('#agenda').hidden = !open; $('#btn-agenda').setAt
 $('#btn-agenda').onclick = e => { e.stopPropagation(); toggleAgenda($('#agenda').hidden); };
 $('#ag-google').addEventListener('click', () => toggleAgenda(false));
 document.addEventListener('click', e => { if(!$('#agenda').hidden && !e.target.closest('#agenda')) toggleAgenda(false); });
+
+/* ---------- mentions légales ---------- */
+let legalFrom = null;
+function openLegal(e){ legalFrom = e.currentTarget; $('#legal').hidden = false; document.body.style.overflow = 'hidden'; $('#legal-close').focus(); }
+function closeLegal(){ $('#legal').hidden = true; document.body.style.overflow = S.view==='camera' ? 'hidden' : ''; if(legalFrom) legalFrom.focus(); }
+document.querySelectorAll('[data-legal]').forEach(b => b.onclick = openLegal);
+$('#legal-close').onclick = closeLegal;
+$('#legal').addEventListener('click', e => { if(e.target.id==='legal') closeLegal(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('#legal').hidden) closeLegal(); });
 
 /* ---------- partager le lien de l'app ---------- */
 $('#btn-share-app').onclick = async () => {
