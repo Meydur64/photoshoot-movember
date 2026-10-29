@@ -616,7 +616,7 @@ function mTarget(map, def){                                // moustache {x,y,w,a
   let cL=map(S.lm[234]), cR=map(S.lm[454]); if(cR.x<cL.x) [cL,cR]=[cR,cL];
   let eL=map(S.lm[33]), eR=map(S.lm[263]); if(eR.x<eL.x) [eL,eR]=[eR,eL];
   const fw = Math.hypot(cR.x-cL.x, cR.y-cL.y);
-  return {x:(nose.x*.65+lip.x*.35)/W, y:(nose.y*.65+lip.y*.35)/H, w:fw*.42/W, a:Math.atan2(eR.y-eL.y, eR.x-eL.x)};
+  return {x:(nose.x*.4+lip.x*.6)/W, y:(nose.y*.4+lip.y*.6)/H, w:fw*.42/W, a:Math.atan2(eR.y-eL.y, eR.x-eL.x)};
 }
 
 /* ---------- composition après la photo : un seul détourage, même cadrage que l'aperçu ---------- */
