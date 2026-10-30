@@ -106,7 +106,7 @@ footer{margin-top:26px;font-size:11px;opacity:.8;text-align:center;line-height:1
 .cam-top button{height:38px;padding:0 14px;border-radius:99px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600}
 .hint{flex:1;text-align:center;font-size:11px;font-weight:700;padding:9px 10px;border-radius:99px;background:#fff;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stage{position:relative;flex:1 1 0;min-height:0;overflow:hidden}
-#preview{position:absolute;left:10px;top:0;width:calc(100% - 20px);height:calc(100% - 6px);object-fit:contain;border-radius:14px}
+#preview{position:absolute;left:10px;top:0;width:calc(100% - 20px);height:calc(100% - 6px);object-fit:contain;border-radius:14px;touch-action:none}
 .overlay{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px}
 #loading{background:rgba(6,32,47,.78);border-radius:14px;margin:0 10px;gap:14px;align-content:center}
 #loading-fun{margin:10px auto 0;max-width:260px;min-height:2.8em;font-family:"Fredoka";font-size:15px;line-height:1.35;opacity:0;transition:opacity .35s}
@@ -277,7 +277,7 @@ details#adjust summary::-webkit-details-marker{display:none}
       <div class="sliders">
         <label>Taille moustache<input type="range" id="sl-mscale" min="0.6" max="1.6" step="0.02" value="1"></label>
         <label>Hauteur moustache<input type="range" id="sl-my" min="-60" max="60" step="1" value="0"></label>
-        <label>Zoom portrait<input type="range" id="sl-zoom" min="0.5" max="1.5" step="0.02" value="1"></label>
+        <label>Zoom portrait<input type="range" id="sl-zoom" min="0.5" max="2.5" step="0.02" value="1"></label>
       </div>
     </details>
     <div class="shutter-row">
@@ -431,6 +431,7 @@ const S = {
   matt:null, mattReady:null, forceSimple: /[?&]detourage=simple\b/.test(location.search),   // ?detourage=simple : MediaPipe seul (comparaison)
   person:document.createElement('canvas'), hasMask:false, lastSeen:0,
   composing:false,                // préparation de la photo finale en cours
+  pan:{x:0, y:0},                 // décalage de la photo glissée au doigt (galerie), en unités 1080x1350
   lm:null,                        // landmarks visage
   m:null, mt:null,                // moustache lissée / cible {x,y,w,a} (fractions)
   blob:null, files:null, url:null,
@@ -563,7 +564,7 @@ async function initModels(){
 
 /* ---------- caméra ---------- */
 async function startCamera(){
-  S.staticMode = false; S.hasMask = false; S.lm = null; S.m = null;
+  S.staticMode = false; S.hasMask = false; S.lm = null; S.m = null; S.pan = {x:0, y:0};
   show('camera');
   $('#cam-error').hidden = true; $('#loading').hidden = false; $('#loading-text').textContent = 'Chargement…';
   await assetsReady;
@@ -603,16 +604,38 @@ $('#file').onchange = async e => {
   if(!img.naturalWidth){ toast('Impossible de lire cette photo.'); return; }
   if(S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; }
   $('#cam-error').hidden = true; $('#loading').hidden = false;
-  S.src = img; S.mirror = false; S.staticMode = true; S.hasMask = false; S.lm = null; S.m = null;
+  S.src = img; S.mirror = false; S.staticMode = true; S.hasMask = false; S.lm = null; S.m = null; S.pan = {x:0, y:0};
   S.vw = img.naturalWidth; S.vh = img.naturalHeight;
   await assetsReady; await initModels();
   await processOnce();
+  autoFrame();
   $('#loading').hidden = true;
   cancelAnimationFrame(S.raf); S.raf = requestAnimationFrame(tick);
 };
+function autoFrame(){                                      // photo de la galerie : cadrage auto autour du visage, une seule fois à l'import
+  S.pan = {x:0, y:0};
+  if(!S.lm) return;                                         // pas de visage trouvé : cadrage par défaut, à ajuster au doigt
+  const l = S.lm, fw = Math.hypot((l[234].x-l[454].x)*S.vw, (l[234].y-l[454].y)*S.vh);
+  const s1 = Math.max(ZONE.w*W/S.vw, ZONE.h*H/S.vh);
+  S.zoom = Math.min(2.5, Math.max(.5, .32*W/(fw*s1)));      // visage ≈ 32 % de la largeur, comme un selfie bien cadré
+  $('#sl-zoom').value = S.zoom;
+  const f = liveFit(), nx = f.ox + l[1].x*S.vw*f.s, ny = f.oy + l[1].y*S.vh*f.s;   // bout du nez
+  S.pan = {x: W/2 - nx, y: (ZONE.y + ZONE.h*.4)*H - ny};    // nez centré, à la hauteur du pivot de zoom
+  S.m = null;                                               // moustache recalculée sur le nouveau cadrage
+}
+let drag = null;                                            // glisser la photo du doigt (galerie uniquement)
+prev.addEventListener('pointerdown', e => { if(!S.staticMode || S.composing) return; drag = {x:e.clientX, y:e.clientY}; try{ prev.setPointerCapture(e.pointerId); }catch(err){} });
+prev.addEventListener('pointermove', e => {
+  if(!drag) return;
+  const r = prev.getBoundingClientRect(), u = W/Math.min(r.width, r.height*PW/PH);   // px écran -> unités 1080x1350
+  S.pan.x += (e.clientX-drag.x)*u; S.pan.y += (e.clientY-drag.y)*u; drag = {x:e.clientX, y:e.clientY};
+});
+['pointerup', 'pointercancel'].forEach(t => prev.addEventListener(t, () => { drag = null; }));
 async function processOnce(){                              // photo de la galerie : repères du visage une seule fois
   if(S.fm){ try{ S.fm.reset(); }catch(e){}                 // nouvelle photo : on oublie la position du visage précédent (sinon moustache décalée)
-    for(let i=0;i<2;i++){ try{ await S.fm.send({image:S.src}); }catch(e){} } }
+    for(let i=0;i<2;i++){ try{ await S.fm.send({image:S.src}); }catch(e){} }
+    for(let t=0; t<10 && !S.lm; t++) await new Promise(r => setTimeout(r, 50));   // les repères arrivent juste après l'envoi : on les attend
+  }
 }
 
 /* ---------- aperçu en direct : photo entière + moustache + calque infos (pas de détourage) ---------- */
@@ -636,7 +659,8 @@ async function tick(){
   }
   renderLive(pc, PW, PH);
   const seen = performance.now()-S.lastSeen < 1500;
-  $('#hint').textContent = !S.src ? 'Caméra indisponible' : S.fmFailed ? 'Place ta moustache avec les réglages'
+  $('#hint').textContent = !S.src ? 'Caméra indisponible' : S.staticMode ? 'Glisse la photo du doigt pour la cadrer'
+    : S.fmFailed ? 'Place ta moustache avec les réglages'
     : seen ? 'Choisis ta moustache et ajuste-la' : 'Je ne te vois pas : place-toi face à la caméra';
   S.raf = requestAnimationFrame(tick);
 }
@@ -647,7 +671,10 @@ function liveFit(){                                        // photo recadrée da
   const s1 = Math.max(zw/S.vw, zh/S.vh), s = s1*S.zoom;
   const oy1 = zy + (zh - S.vh*s1)*.35;                      // cadrage à zoom 1 : on garde plutôt le haut (la tête)
   const py = zy + zh*.4, iy = (py - oy1)/s1;                // point pivot (≈ hauteur du visage) : il ne bouge pas quand on zoome,
-  return {s, ox: zx + (zw-S.vw*s)/2, oy: py - iy*s};        // donc dézoomer ne fait pas descendre le portrait vers les bandeaux
+  let ox = zx + (zw-S.vw*s)/2 + S.pan.x, oy = py - iy*s + S.pan.y;   // donc dézoomer ne fait pas descendre le portrait vers les bandeaux
+  ox = Math.min(W/2, Math.max(W/2 - S.vw*s, ox));          // décalage au doigt (galerie) : la photo peut dépasser du cadre,
+  oy = Math.min(py, Math.max(py - S.vh*s, oy));             // mais elle couvre toujours le centre de la zone
+  return {s, ox, oy};
 }
 function livePt(p){                                        // repère normalisé -> 1080x1350 (aperçu en direct)
   const f = liveFit(), x = f.ox + p.x*S.vw*f.s;
