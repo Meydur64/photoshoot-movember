@@ -641,10 +641,12 @@ async function tick(){
 }
 
 /* ---------- géométrie ---------- */
-function liveFit(){                                        // photo recadrée dans la zone photo ; dézoomée, elle reste posée en bas
+function liveFit(){                                        // photo recadrée dans la zone photo ; le zoom se fait autour du visage
   const zx = ZONE.x*W, zy = ZONE.y*H, zw = ZONE.w*W, zh = ZONE.h*H;
-  const s = Math.max(zw/S.vw, zh/S.vh)*S.zoom, dh = S.vh*s;
-  return {s, ox: zx + (zw-S.vw*s)/2, oy: dh < zh ? zy+zh-dh : zy + (zh-dh)*.35};   // trop haute : on garde plutôt le haut (la tête)
+  const s1 = Math.max(zw/S.vw, zh/S.vh), s = s1*S.zoom;
+  const oy1 = zy + (zh - S.vh*s1)*.35;                      // cadrage à zoom 1 : on garde plutôt le haut (la tête)
+  const py = zy + zh*.4, iy = (py - oy1)/s1;                // point pivot (≈ hauteur du visage) : il ne bouge pas quand on zoome,
+  return {s, ox: zx + (zw-S.vw*s)/2, oy: py - iy*s};        // donc dézoomer ne fait pas descendre le portrait vers les bandeaux
 }
 function livePt(p){                                        // repère normalisé -> 1080x1350 (aperçu en direct)
   const f = liveFit(), x = f.ox + p.x*S.vw*f.s;
@@ -781,7 +783,19 @@ function drawPhoto(ctx, img, k){                          // photo (ou silhouett
   ctx.save(); ctx.beginPath(); ctx.rect(ZONE.x*w, ZONE.y*H*k, ZONE.w*w, ZONE.h*H*k); ctx.clip();   // jamais hors de la zone photo
   if(S.mirror){ ctx.translate(w, 0); ctx.scale(-1, 1); }
   ctx.drawImage(img, f.ox*k, f.oy*k, S.vw*f.s*k, S.vh*f.s*k); ctx.restore();
+  // dézoomée, la photo s'arrête avant le bas de la zone : fondu doux vers le fond bleu (pas de coupure nette)
+  const yb = (f.oy + S.vh*f.s)*k, zb = (ZONE.y+ZONE.h)*H*k;
+  if(yb < zb - 2 && IMG.fond && IMG.fond.naturalWidth){
+    const fh = Math.max(4, Math.round(Math.min(S.vh*f.s*k*.18, 160*k))), hk = H*k, fw = IMG.fond.naturalWidth, fhn = IMG.fond.naturalHeight;
+    const t = fadeCanvas, tx = fadeCtx; if(t.width !== Math.round(w) || t.height !== fh){ t.width = Math.round(w); t.height = fh; }
+    tx.globalCompositeOperation = 'source-over'; tx.clearRect(0, 0, t.width, fh);
+    tx.drawImage(IMG.fond, 0, (yb-fh)/hk*fhn, fw, fh/hk*fhn, 0, 0, t.width, fh);
+    const g = tx.createLinearGradient(0, 0, 0, fh); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)');
+    tx.globalCompositeOperation = 'destination-in'; tx.fillStyle = g; tx.fillRect(0, 0, t.width, fh);
+    ctx.drawImage(t, 0, yb-fh);
+  }
 }
+const fadeCanvas = document.createElement('canvas'), fadeCtx = fadeCanvas.getContext('2d');
 function renderLive(ctx, w, h){                            // aperçu : photo entière -> moustache -> infos -> texte
   const k = w/W;
   if(IMG.fond && IMG.fond.naturalWidth) ctx.drawImage(IMG.fond, 0, 0, w, h);   // fond visible si la photo ne remplit pas le cadre
