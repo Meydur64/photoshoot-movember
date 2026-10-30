@@ -161,6 +161,7 @@ details#adjust summary::-webkit-details-marker{display:none}
 .pack3{margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .pack3 img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:10px;border:1px solid rgba(0,0,0,.1);background:var(--blue)}
 .cap{margin-top:12px;border-radius:14px;background:var(--cream);border:1px solid rgba(0,0,0,.1);padding:12px;font-size:12px;line-height:1.45}
+#cap-text{white-space:pre-line}
 .cap button{margin-top:8px;height:36px;padding:0 16px;border-radius:99px;background:var(--blue);color:#fff;font-weight:700;font-size:12px}
 #toast{position:fixed;left:50%;bottom:calc(24px + var(--safe-b));transform:translate(-50%,20px);opacity:0;pointer-events:none;z-index:99;max-width:min(92vw,420px);background:#000;color:#fff;font-size:13px;font-weight:600;line-height:1.35;padding:12px 18px;border-radius:16px;text-align:center;transition:.25s}
 #toast.on{opacity:1;transform:translate(-50%,0)}
@@ -292,7 +293,7 @@ details#adjust summary::-webkit-details-marker{display:none}
 <main id="s-result" hidden>
   <div class="res-card">
     <img id="res-img" alt="Ton portrait Movember">
-    <div class="res-meta"><b id="res-name"></b><span class="res-vibe" id="res-vibe"></span><small>Nous Nours • Movember 2026</small></div>
+    <div class="res-meta"><b>J'ai choisi « <span id="res-name"></span> »</b><span class="res-vibe" id="res-vibe"></span><small>Association BEAR NousNours 64 / 40 - Movember 2026</small></div>
   </div>
   <div class="row2">
     <button class="btn" id="btn-retake">Refaire</button>
@@ -406,7 +407,9 @@ const MUSTACHES = [
   {id:'fluours',   name:'La FluOURS !',          vibe:'club et friendly',            wf:1.95, ay:.38},
 ];
 const TILES = ['rainbow','pintxours','classique','mourstache'];
-const CAPTION = "Je porte la moustache pour #Movember avec l'association Bear @nousnours64.40 🐻🥸 Vous aussi participez à la prévention de la santé masculine ici : tinyurl.com/nousnours-movember. Soirée caritative dimanche 22 novembre dès 18h au 42 Bar, 42 rue Pannecau, Bayonne : tombola, entrée gratuite, buffet offert ! ... Vous pouvez faire un don sur fr.movember.com #Movember #NousNours #Bayonne #lgbt #Bear";
+const CAPTION_BASE = "Je porte la moustache pour #Movember avec l'association Bear @nousnours64.40 🐻🥸 Vous aussi participez à la prévention de la santé masculine ici : tinyurl.com/nousnours-movember. Soirée caritative dimanche 22 novembre dès 18h au 42 Bar, 42 rue Pannecau, Bayonne : tombola, entrée gratuite, buffet offert ! ... Vous pouvez faire un don sur fr.movember.com #Movember #NousNours #Bayonne #lgbt #Bear";
+const caption = () => { const m = MUSTACHES[S.mi];      // la légende commence par la moustache choisie (donne envie de choisir la sienne)
+  return `J'ai choisi « ${m.name} », ${m.vibe} 🥸\n\n` + CAPTION_BASE; };
 const APP_URL = 'https://tinyurl.com/nousnours-movember';   // lien court → https://meydur64.github.io/photoshoot-movember/
 
 /* ---------- assets ---------- */
@@ -838,7 +841,7 @@ async function capture(){
   if(S.url) URL.revokeObjectURL(S.url);
   S.url = URL.createObjectURL(S.blob);
   $('#res-img').src = S.url; $('#pk1').src = S.url; $('#res-name').textContent = MUSTACHES[S.mi].name; $('#res-vibe').textContent = MUSTACHES[S.mi].vibe;
-  $('#cap-text').textContent = CAPTION;
+  $('#cap-text').textContent = caption();
   show('result');
   prepareFiles();
 }
@@ -854,13 +857,13 @@ async function prepareFiles(){
   ];
 }
 function download(file){ const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
-async function copyCaption(){ try{ await navigator.clipboard.writeText(CAPTION); return true; }catch(e){ return false; } }
+async function copyCaption(){ try{ await navigator.clipboard.writeText(caption()); return true; }catch(e){ return false; } }
 $('#btn-dl').onclick = () => { download(new File([S.blob],'nousnours-movember-moi.jpg',{type:'image/jpeg'})); };
 $('#btn-cap').onclick = async () => toast(await copyCaption() ? 'Légende copiée ✔' : 'Copie impossible : sélectionne le texte à la main.');
 $('#btn-retake').onclick = startCamera;
 $('#btn-share').onclick = async () => {
   if(!S.files){ toast('Préparation des images…'); await prepareFiles(); }
-  const data = {files:S.files, title:'Movember · Nous Nours', text:CAPTION};
+  const data = {files:S.files, title:'Movember · Nous Nours', text:caption()};
   if(navigator.canShare && navigator.canShare({files:S.files})){
     copyCaption();                                         // Instagram ignore le texte : on le met au presse-papier
     try{ await navigator.share(data); toast("Légende copiée : colle-la dans ta publication 🐻"); }
