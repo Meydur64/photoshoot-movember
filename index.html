@@ -109,6 +109,8 @@ footer{margin-top:26px;font-size:11px;opacity:.8;text-align:center;line-height:1
 #preview{position:absolute;left:10px;top:0;width:calc(100% - 20px);height:calc(100% - 6px);object-fit:contain;border-radius:14px}
 .overlay{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px}
 #loading{background:rgba(6,32,47,.78);border-radius:14px;margin:0 10px;gap:14px;align-content:center}
+#loading-fun{margin:10px auto 0;max-width:260px;min-height:2.8em;font-family:"Fredoka";font-size:15px;line-height:1.35;opacity:0;transition:opacity .35s}
+#loading-fun.on{opacity:.95}
 .spin{width:44px;height:44px;border-radius:50%;border:5px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spin 1s linear infinite;margin:0 auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 #count{pointer-events:none;font-family:"Fredoka";font-weight:700;font-size:min(34vw,200px);color:#fff;text-shadow:0 6px 30px rgba(0,0,0,.5)}
@@ -262,7 +264,7 @@ details#adjust summary::-webkit-details-marker{display:none}
   </div>
   <div class="stage">
     <canvas id="preview" width="540" height="675"></canvas>
-    <div class="overlay" id="loading"><div><div class="spin"></div><p id="loading-text" style="margin-top:14px;font-weight:600">Chargement du détourage…</p></div></div>
+    <div class="overlay" id="loading"><div><div class="spin"></div><p id="loading-text" style="margin-top:14px;font-weight:600">Chargement du détourage…</p><p id="loading-fun"></p></div></div>
     <div class="overlay" id="count" hidden></div>
     <div class="overlay" id="flash"></div>
     <div class="overlay" id="cam-error" hidden><p id="cam-error-text"></p><button id="btn-err-file">Choisir une photo</button></div>
@@ -663,6 +665,16 @@ async function segment(src, w, h){                          // un passage MediaP
   try{ await S.seg.send({image:src}); } finally { segCb = null; }
   return c;
 }
+// petits messages pendant le détourage HD, pour occuper les secondes d'attente 🐻
+const FUN = ['Sinon ça va toi ? 😊', 'Tu seras là dimanche 22 au 42 pour la tombola caritative ? 🎟️',
+             'Le billet est à 1 €, 100 % reversé à Movember 🥸', 'Encore quelques poils à peigner… 🐻'];
+let funT = 0, funIn = 0;
+function funStart(){
+  const e = $('#loading-fun'); let i = 0; funStop();
+  const next = () => { e.classList.remove('on'); clearTimeout(funIn); funIn = setTimeout(() => { e.textContent = FUN[i++ % FUN.length]; e.classList.add('on'); }, 350); };
+  funT = setTimeout(() => { next(); funT = setInterval(next, 2600); }, 900);   // rien si le détourage est très rapide
+}
+function funStop(){ clearTimeout(funT); clearInterval(funT); clearTimeout(funIn); const e = $('#loading-fun'); e.classList.remove('on'); e.textContent = ''; }
 function grabStill(){                                     // photo figée (côté long ≤ 1600 px) + partie visible dans la zone photo
   const w0 = S.vw, h0 = S.vh, q = Math.min(1, 1600/Math.max(w0,h0)), w = Math.round(w0*q), h = Math.round(h0*q);
   const still = document.createElement('canvas'); still.width = w; still.height = h;
@@ -712,7 +724,7 @@ async function compose(g){
     await Promise.race([S.mattReady, new Promise(r => setTimeout(r, 6000))]);
   }
   if(!S.forceSimple && S.matt && vis.w > 32 && vis.h > 32){
-    $('#loading-text').textContent = 'Détourage en cours…';
+    $('#loading-text').textContent = 'Détourage en cours…'; funStart();
     await new Promise(r => setTimeout(r, 30));              // laisse le texte s'afficher
     try{ mx.imageSmoothingQuality = 'high'; mx.drawImage(await matte(still, vis), vis.x, vis.y, vis.w, vis.h); ok = true; }
     catch(e){ console.warn(e); mx.clearRect(0, 0, w, h); }
@@ -819,10 +831,10 @@ async function capture(){
     render(c.getContext('2d'), W, H);
     S.blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .93));
   }catch(e){
-    console.warn(e); S.composing = false; $('#loading').hidden = true;
+    console.warn(e); S.composing = false; $('#loading').hidden = true; funStop();
     toast('Oups, la photo n\'a pas pu être préparée : réessaie.'); startCamera(); return;
   }
-  S.composing = false; $('#loading').hidden = true;
+  S.composing = false; $('#loading').hidden = true; funStop();
   if(S.url) URL.revokeObjectURL(S.url);
   S.url = URL.createObjectURL(S.blob);
   $('#res-img').src = S.url; $('#pk1').src = S.url; $('#res-name').textContent = MUSTACHES[S.mi].name; $('#res-vibe').textContent = MUSTACHES[S.mi].vibe;
