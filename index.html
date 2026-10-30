@@ -527,7 +527,7 @@ async function initModels(){
   try{
     await scriptLoad(FM + 'face_mesh.js');
     const fm = new FaceMesh({locateFile:f => FM + f});
-    fm.setOptions({maxNumFaces:1, refineLandmarks:false, minDetectionConfidence:.5, minTrackingConfidence:.5});
+    fm.setOptions({maxNumFaces:1, refineLandmarks:false, minDetectionConfidence:.3, minTrackingConfidence:.5});   // 0,3 : à 0,5 les grosses barbes ne sont pas détectées
     fm.onResults(r => {                                     // visage perdu un court instant : on garde les derniers repères (pas de clignotement)
       const l = r.multiFaceLandmarks && r.multiFaceLandmarks[0];
       if(l){ S.lm = l; S.lmT = performance.now(); } else if(performance.now() - (S.lmT||0) > 400) S.lm = null;
@@ -611,7 +611,8 @@ $('#file').onchange = async e => {
   cancelAnimationFrame(S.raf); S.raf = requestAnimationFrame(tick);
 };
 async function processOnce(){                              // photo de la galerie : repères du visage une seule fois
-  if(S.fm){ for(let i=0;i<2;i++){ try{ await S.fm.send({image:S.src}); }catch(e){} } }
+  if(S.fm){ try{ S.fm.reset(); }catch(e){}                 // nouvelle photo : on oublie la position du visage précédent (sinon moustache décalée)
+    for(let i=0;i<2;i++){ try{ await S.fm.send({image:S.src}); }catch(e){} } }
 }
 
 /* ---------- aperçu en direct : photo entière + moustache + calque infos (pas de détourage) ---------- */
