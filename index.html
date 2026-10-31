@@ -407,7 +407,7 @@ const MUSTACHES = [
   {id:'fluours',   name:'La FluOURS !',          vibe:'club et friendly',            wf:1.95, ay:.38},
 ];
 const TILES = ['rainbow','pintxours','classique','mourstache'];
-const CAPTION_BASE = "Je porte la moustache pour #Movember avec l'association Bear @nousnours64.40 🐻🥸 Vous aussi participez à la prévention de la santé masculine ici : tinyurl.com/nousnours-movember. Soirée caritative dimanche 22 novembre dès 18h au 42 Bar, 42 rue Pannecau, Bayonne : tombola, entrée gratuite, buffet offert ! ... Vous pouvez faire un don sur fr.movember.com #Movember #NousNours #Bayonne #lgbt #Bear";
+const CAPTION_BASE = "Je porte la moustache pour #Movember avec l'association Bear @nousnours64.40 🐻🥸 Vous aussi participez à la prévention de la santé masculine ici : tinyurl.com/nousnours-movember. Soirée caritative dimanche 22 novembre dès 18h au 42 Bar, 42 rue Pannecau, Bayonne : tombola, entrée gratuite, buffet offert ! Venez avec un·e ami·e : plus on est de Nours, plus on est solidaires ! ... Vous pouvez faire un don sur fr.movember.com #Movember #NousNours #Bayonne #lgbt #Bear";
 const caption = () => { const m = MUSTACHES[S.mi];      // la légende commence par la moustache choisie (donne envie de choisir la sienne)
   return `J'ai choisi « ${m.name} », ${m.vibe} 🥸\n\n` + CAPTION_BASE; };
 const APP_URL = 'https://tinyurl.com/nousnours-movember';   // lien court → https://meydur64.github.io/photoshoot-movember/
@@ -491,7 +491,7 @@ document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('#legal').
 
 /* ---------- partager le lien de l'app ---------- */
 $('#btn-share-app').onclick = async () => {
-  const data = {title:'Photoshoot Movember · Nous Nours', text:"Viens te faire pousser une moustache pour #Movember avec les NousNours 🐻🥸", url:APP_URL};
+  const data = {title:'Photoshoot Movember · Nous Nours', text:"Viens te faire pousser une moustache pour #Movember avec les NousNours 🐻🥸 Et le dimanche 22 novembre dès 18h au 42 Bar à Bayonne, viens à notre soirée caritative avec un·e ami·e : plus on est de Nours, plus on est solidaires !", url:APP_URL};
   if(navigator.share){
     try{ await navigator.share(data); return; }catch(e){ if(e.name==='AbortError') return; }
   }
