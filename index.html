@@ -753,13 +753,22 @@ async function gateMask(still, w, h){                     // silhouette MediaPip
   gx.imageSmoothingQuality = 'high'; gx.drawImage(sm, 0, 0, w, h);   // agrandi = bord progressif, pas de coupure nette
   return G;
 }
-function brighten(ctx, w, h){                               // visage trop sombre : on éclaircit la personne seule (le fond ne bouge pas)
+function brighten(ctx, w, h, l){                            // visage trop sombre : on éclaircit la personne seule (le fond ne bouge pas)
+  if(!l) return;                                            // sans visage repéré, on ne touche à rien
   const id = ctx.getImageData(0, 0, w, h), d = id.data; let sum = 0, n = 0;
-  for(let i=0;i<d.length;i+=16) if(d[i+3] > 200){ sum += .299*d[i] + .587*d[i+1] + .114*d[i+2]; n++; }
-  if(n < 500) return;
-  const mean = sum/n/255; if(mean >= .42) return;           // assez lumineux : on ne touche à rien
-  const g = Math.max(.6, Math.log(.47)/Math.log(Math.max(mean, .05)));   // gamma < 1 = plus clair, plafonné pour rester naturel
-  const lut = new Uint8ClampedArray(256); for(let v=0;v<256;v++) lut[v] = Math.round(255*Math.pow(v/255, g));
+  const r = Math.max(2, Math.round(.06*Math.hypot((l[234].x-l[454].x)*w, (l[234].y-l[454].y)*h)));
+  for(const p of [151, 50, 280]){                           // on mesure front et pommettes : un pull sombre ou une barbe ne comptent pas
+    const px = Math.round(l[p].x*w), py = Math.round(l[p].y*h);
+    for(let y=Math.max(0,py-r); y<=Math.min(h-1,py+r); y++) for(let x=Math.max(0,px-r); x<=Math.min(w-1,px+r); x++){
+      const i = (y*w+x)*4;
+      if(d[i+3] > 200){ sum += .299*d[i] + .587*d[i+1] + .114*d[i+2]; n++; }
+    }
+  }
+  if(n < 20) return;
+  const mean = sum/n/255; if(mean >= .32) return;           // visage assez lumineux : on ne touche à rien
+  const g = Math.max(.78, Math.log(.38)/Math.log(Math.max(mean, .05)));  // gamma < 1 = plus clair, plafonné pour rester naturel
+  const lut = new Uint8ClampedArray(256);
+  for(let v=0;v<256;v++){ const t = Math.min(1, v/64), k = t*t*(3-2*t); lut[v] = Math.round(v + (255*Math.pow(v/255, g)-v)*k); }  // les noirs restent noirs
   for(let i=0;i<d.length;i+=4){ d[i] = lut[d[i]]; d[i+1] = lut[d[i+1]]; d[i+2] = lut[d[i+2]]; }
   ctx.putImageData(id, 0, 0);
 }
@@ -819,7 +828,7 @@ async function compose(g){
   pctx.globalCompositeOperation = 'source-over'; pctx.drawImage(still, 0, 0);
   pctx.globalCompositeOperation = 'destination-in'; pctx.drawImage(M, 0, 0);
   pctx.globalCompositeOperation = 'source-over';
-  brighten(pctx, w, h);
+  brighten(pctx, w, h, S.lm);
   S.vw = w; S.vh = h; S.hasMask = true;                   // même proportions que l'aperçu : cadrage identique
   if(!S.m) S.m = mTarget(livePt, {x:.5, y:.6, w:.17, a:0}); // sinon : moustache exactement comme validée à l'écran
 }
